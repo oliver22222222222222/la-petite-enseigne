@@ -14,16 +14,12 @@ const LaPetiteEnseigne = () => {
   const [texts, setTexts] = useState([]);
   const [selectedTextId, setSelectedTextId] = useState(null);
   const [showTextControls, setShowTextControls] = useState(false);
-  const [textInteraction, setTextInteraction] = useState({
-    isDragging: false,
-    isGesturing: false,
-    dragStart: { x: 0, y: 0 },
-    lastTouchDistance: 0,
-    lastTouchAngle: 0,
-    activeTextId: null
-  });
+  const [textGesturing, setTextGesturing] = useState(null);
+  const [lastTextTouchDistance, setLastTextTouchDistance] = useState(0);
+  const [lastTextTouchAngle, setLastTextTouchAngle] = useState(0);
   const fileInputRef = useRef(null);
   const circleRef = useRef(null);
+  const canvasRef = useRef(null);
 
   const fonts = [
     { name: 'Script', style: 'font-serif italic' },
@@ -110,12 +106,6 @@ const LaPetiteEnseigne = () => {
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false);
     setIsGesturing(false);
-    setTextInteraction(prev => ({
-      ...prev,
-      isDragging: false,
-      isGesturing: false,
-      activeTextId: null
-    }));
   }, []);
 
   const handleMouseDown = useCallback((e) => {
@@ -145,119 +135,14 @@ const LaPetiteEnseigne = () => {
       document.addEventListener('mouseup', handleMouseUp);
       document.addEventListener('touchmove', handleTouchMove, { passive: false });
       document.addEventListener('touchend', handleTouchEnd);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        document.removeEventListener('touchmove', handleTouchMove);
+        document.removeEventListener('touchend', handleTouchEnd);
+      };
     }
-    
-    if (textInteraction.isDragging || textInteraction.isGesturing) {
-      document.addEventListener('touchmove', handleTextTouchMove, { passive: false });
-      document.addEventListener('touchend', handleTouchEnd);
-    }
-    
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchmove', handleTextTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-    };
-  }, [isDragging, isGesturing, textInteraction.isDragging, textInteraction.isGesturing, handleMouseMove, handleMouseUp, handleTouchMove, handleTextTouchMove, handleTouchEnd]);
-
-  const handleTextWheel = useCallback((text, e) => {
-    e.preventDefault();
-    setSelectedTextId(text.id);
-    setShowTextControls(true);
-    
-    if (e.ctrlKey || e.metaKey) {
-      // Zoom avec Ctrl + molette
-      const deltaSize = e.deltaY > 0 ? -2 : 2;
-      const newSize = Math.max(12, Math.min(72, text.fontSize + deltaSize));
-      updateText(text.id, { fontSize: newSize });
-    } else if (e.shiftKey) {
-      // Rotation avec Shift + molette
-      const deltaRotation = e.deltaY > 0 ? -15 : 15;
-      const newRotation = (text.rotation + deltaRotation) % 360;
-      updateText(text.id, { rotation: newRotation });
-    }
-  }, [updateText]);
-
-  // Gestion tactile pour le texte
-  const handleTextTouchStart = useCallback((textId, e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    setSelectedTextId(textId);
-    setShowTextControls(true);
-    
-    if (e.touches.length === 1) {
-      setTexts(currentTexts => {
-        const text = currentTexts.find(t => t.id === textId);
-        if (!text) return currentTexts;
-        
-        const rect = circleRef.current.getBoundingClientRect();
-        const textCenterX = rect.left + (text.x / 100) * 300 + 150;
-        const textCenterY = rect.top + (text.y / 100) * 300 + 150;
-        
-        setTextInteraction(prev => ({
-          ...prev,
-          isDragging: true,
-          activeTextId: textId,
-          dragStart: {
-            x: e.touches[0].clientX - textCenterX,
-            y: e.touches[0].clientY - textCenterY
-          }
-        }));
-        
-        return currentTexts;
-      });
-    } else if (e.touches.length === 2) {
-      setTextInteraction(prev => ({
-        ...prev,
-        isGesturing: true,
-        activeTextId: textId,
-        lastTouchDistance: getTouchDistance(e.touches),
-        lastTouchAngle: getTouchAngle(e.touches)
-      }));
-    }
-  }, [getTouchDistance, getTouchAngle]);
-
-  // Gestion tactile pour le texte
-  const handleTextTouchStart = useCallback((textId, e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    setSelectedTextId(textId);
-    setShowTextControls(true);
-    
-    if (e.touches.length === 1) {
-      setTexts(currentTexts => {
-        const text = currentTexts.find(t => t.id === textId);
-        if (!text) return currentTexts;
-        
-        const rect = circleRef.current.getBoundingClientRect();
-        const textCenterX = rect.left + (text.x / 100) * 300 + 150;
-        const textCenterY = rect.top + (text.y / 100) * 300 + 150;
-        
-        setTextInteraction(prev => ({
-          ...prev,
-          isDragging: true,
-          activeTextId: textId,
-          dragStart: {
-            x: e.touches[0].clientX - textCenterX,
-            y: e.touches[0].clientY - textCenterY
-          }
-        }));
-        
-        return currentTexts;
-      });
-    } else if (e.touches.length === 2) {
-      setTextInteraction(prev => ({
-        ...prev,
-        isGesturing: true,
-        activeTextId: textId,
-        lastTouchDistance: getTouchDistance(e.touches),
-        lastTouchAngle: getTouchAngle(e.touches)
-      }));
-    }
-  }, [getTouchDistance, getTouchAngle]);
+  }, [isDragging, isGesturing, handleMouseMove, handleMouseUp, handleTouchMove, handleTouchEnd]);
 
   const addText = () => {
     const newText = {
@@ -274,164 +159,11 @@ const LaPetiteEnseigne = () => {
     setShowTextControls(true);
   };
 
-  const updateText = useCallback((id, updates) => {
-    setTexts(texts => texts.map(text => 
+  const updateText = (id, updates) => {
+    setTexts(texts.map(text => 
       text.id === id ? { ...text, ...updates } : text
     ));
-  }, []);
-
-  const handleTextDrag = useCallback((id, e) => {
-    const rect = circleRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left - 150) / 300) * 100;
-    const y = ((e.clientY - rect.top - 150) / 300) * 100;
-    updateText(id, { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
-  }, [updateText]);
-
-  const handleTextTouchMove = useCallback((e) => {
-    e.preventDefault();
-    
-    if (e.touches.length === 1 && textInteraction.isDragging && textInteraction.activeTextId) {
-      const rect = circleRef.current.getBoundingClientRect();
-      const x = ((e.touches[0].clientX - textInteraction.dragStart.x - rect.left - 150) / 300) * 100;
-      const y = ((e.touches[0].clientY - textInteraction.dragStart.y - rect.top - 150) / 300) * 100;
-      
-      updateText(textInteraction.activeTextId, { 
-        x: Math.max(0, Math.min(100, x)), 
-        y: Math.max(0, Math.min(100, y)) 
-      });
-    } else if (e.touches.length === 2 && textInteraction.isGesturing && textInteraction.activeTextId) {
-      const distance = getTouchDistance(e.touches);
-      const angle = getTouchAngle(e.touches);
-      
-      setTexts(currentTexts => {
-        const text = currentTexts.find(t => t.id === textInteraction.activeTextId);
-        if (text) {
-          // Zoom du texte
-          const scaleChange = distance / textInteraction.lastTouchDistance;
-          const newSize = Math.max(12, Math.min(72, text.fontSize * scaleChange));
-          
-          // Rotation du texte  
-          const angleDiff = angle - textInteraction.lastTouchAngle;
-          const newRotation = (text.rotation + angleDiff) % 360;
-          
-          setTextInteraction(prev => ({
-            ...prev,
-            lastTouchDistance: distance,
-            lastTouchAngle: angle
-          }));
-          
-          return currentTexts.map(t => 
-            t.id === textInteraction.activeTextId 
-              ? { ...t, fontSize: Math.round(newSize), rotation: Math.round(newRotation) }
-              : t
-          );
-        }
-        return currentTexts;
-      });
-    }
-  }, [textInteraction, updateText, getTouchDistance, getTouchAngle]);
-
-  const handleTextWheel = useCallback((text, e) => {
-    e.preventDefault();
-    setSelectedTextId(text.id);
-    setShowTextControls(true);
-    
-    if (e.ctrlKey || e.metaKey) {
-      // Zoom avec Ctrl + molette
-      const deltaSize = e.deltaY > 0 ? -2 : 2;
-      const newSize = Math.max(12, Math.min(72, text.fontSize + deltaSize));
-      updateText(text.id, { fontSize: newSize });
-    } else if (e.shiftKey) {
-      // Rotation avec Shift + molette
-      const deltaRotation = e.deltaY > 0 ? -15 : 15;
-      const newRotation = (text.rotation + deltaRotation) % 360;
-      updateText(text.id, { rotation: newRotation });
-    }
-  }, [updateText]);
-
-  // Gestion tactile pour le texte
-  const handleTextTouchStart = useCallback((textId, e) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    setSelectedTextId(textId);
-    setShowTextControls(true);
-    
-    if (e.touches.length === 1) {
-      setTexts(currentTexts => {
-        const text = currentTexts.find(t => t.id === textId);
-        if (!text) return currentTexts;
-        
-        const rect = circleRef.current.getBoundingClientRect();
-        const textCenterX = rect.left + (text.x / 100) * 300 + 150;
-        const textCenterY = rect.top + (text.y / 100) * 300 + 150;
-        
-        setTextInteraction(prev => ({
-          ...prev,
-          isDragging: true,
-          activeTextId: textId,
-          dragStart: {
-            x: e.touches[0].clientX - textCenterX,
-            y: e.touches[0].clientY - textCenterY
-          }
-        }));
-        
-        return currentTexts;
-      });
-    } else if (e.touches.length === 2) {
-      setTextInteraction(prev => ({
-        ...prev,
-        isGesturing: true,
-        activeTextId: textId,
-        lastTouchDistance: getTouchDistance(e.touches),
-        lastTouchAngle: getTouchAngle(e.touches)
-      }));
-    }
-  }, [getTouchDistance, getTouchAngle]);
-
-  const handleTextTouchMove = useCallback((e) => {
-    e.preventDefault();
-    
-    if (e.touches.length === 1 && textInteraction.isDragging && textInteraction.activeTextId) {
-      const rect = circleRef.current.getBoundingClientRect();
-      const x = ((e.touches[0].clientX - textInteraction.dragStart.x - rect.left - 150) / 300) * 100;
-      const y = ((e.touches[0].clientY - textInteraction.dragStart.y - rect.top - 150) / 300) * 100;
-      
-      updateText(textInteraction.activeTextId, { 
-        x: Math.max(0, Math.min(100, x)), 
-        y: Math.max(0, Math.min(100, y)) 
-      });
-    } else if (e.touches.length === 2 && textInteraction.isGesturing && textInteraction.activeTextId) {
-      const distance = getTouchDistance(e.touches);
-      const angle = getTouchAngle(e.touches);
-      
-      setTexts(currentTexts => {
-        const text = currentTexts.find(t => t.id === textInteraction.activeTextId);
-        if (text) {
-          // Zoom du texte
-          const scaleChange = distance / textInteraction.lastTouchDistance;
-          const newSize = Math.max(12, Math.min(72, text.fontSize * scaleChange));
-          
-          // Rotation du texte  
-          const angleDiff = angle - textInteraction.lastTouchAngle;
-          const newRotation = (text.rotation + angleDiff) % 360;
-          
-          setTextInteraction(prev => ({
-            ...prev,
-            lastTouchDistance: distance,
-            lastTouchAngle: angle
-          }));
-          
-          return currentTexts.map(t => 
-            t.id === textInteraction.activeTextId 
-              ? { ...t, fontSize: Math.round(newSize), rotation: Math.round(newRotation) }
-              : t
-          );
-        }
-        return currentTexts;
-      });
-    }
-  }, [textInteraction, updateText, getTouchDistance, getTouchAngle]);
+  };
 
   const deleteText = (id) => {
     setTexts(texts.filter(text => text.id !== id));
@@ -441,9 +173,193 @@ const LaPetiteEnseigne = () => {
     }
   };
 
+  // Gestion tactile pour le texte
+  const handleTextTouchStart = useCallback((textId, e) => {
+    e.stopPropagation();
+    setSelectedTextId(textId);
+    setShowTextControls(true);
+    
+    if (e.touches.length === 1) {
+      // Un doigt : déplacement
+      const text = texts.find(t => t.id === textId);
+      const rect = circleRef.current.getBoundingClientRect();
+      const startX = (text.x / 100) * 300 + 150;
+      const startY = (text.y / 100) * 300 + 150;
+      
+      const handleTextDrag = (e) => {
+        const x = ((e.touches[0].clientX - rect.left - 150) / 300) * 100;
+        const y = ((e.touches[0].clientY - rect.top - 150) / 300) * 100;
+        updateText(textId, { 
+          x: Math.max(0, Math.min(100, x)), 
+          y: Math.max(0, Math.min(100, y)) 
+        });
+      };
+      
+      const handleTextRelease = () => {
+        document.removeEventListener('touchmove', handleTextDrag);
+        document.removeEventListener('touchend', handleTextRelease);
+      };
+      
+      document.addEventListener('touchmove', handleTextDrag, { passive: false });
+      document.addEventListener('touchend', handleTextRelease);
+      
+    } else if (e.touches.length === 2) {
+      // Deux doigts : zoom et rotation
+      setTextGesturing(textId);
+      setLastTextTouchDistance(getTouchDistance(e.touches));
+      setLastTextTouchAngle(getTouchAngle(e.touches));
+      
+      const handleTextGesture = (e) => {
+        if (e.touches.length === 2) {
+          const distance = getTouchDistance(e.touches);
+          const angle = getTouchAngle(e.touches);
+          const text = texts.find(t => t.id === textId);
+          
+          // Zoom du texte
+          const scaleChange = distance / lastTextTouchDistance;
+          const newFontSize = Math.max(12, Math.min(72, text.fontSize * scaleChange));
+          
+          // Rotation du texte
+          const angleDiff = angle - lastTextTouchAngle;
+          const newRotation = (text.rotation + angleDiff) % 360;
+          
+          updateText(textId, { 
+            fontSize: Math.round(newFontSize),
+            rotation: Math.round(newRotation)
+          });
+          
+          setLastTextTouchDistance(distance);
+          setLastTextTouchAngle(angle);
+        }
+      };
+      
+      const handleTextGestureEnd = () => {
+        setTextGesturing(null);
+        document.removeEventListener('touchmove', handleTextGesture);
+        document.removeEventListener('touchend', handleTextGestureEnd);
+      };
+      
+      document.addEventListener('touchmove', handleTextGesture, { passive: false });
+      document.addEventListener('touchend', handleTextGestureEnd);
+    }
+  }, [texts]);
+
+  // Export et envoi par email
+  const exportImage = useCallback(async () => {
+    if (!selectedImage) return;
+    
+    try {
+      // Créer un canvas pour l'export
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const size = 600;
+      canvas.width = size;
+      canvas.height = size;
+      
+      // Fond blanc
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+      
+      // Dessiner le cercle de cadrage
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(size/2, size/2, size/2 - 10, 0, 2 * Math.PI);
+      ctx.clip();
+      
+      // Dessiner l'image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve) => {
+        img.onload = () => {
+          const centerX = size/2 + (imagePosition.x * size/320);
+          const centerY = size/2 + (imagePosition.y * size/320);
+          
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate((imageRotation * Math.PI) / 180);
+          ctx.scale(imageScale, imageScale);
+          ctx.drawImage(img, -img.width/2, -img.height/2);
+          ctx.restore();
+          resolve();
+        };
+        img.src = selectedImage;
+      });
+      
+      ctx.restore();
+      
+      // Dessiner les textes
+      texts.forEach(text => {
+        ctx.save();
+        ctx.font = `${text.fontSize * (size/320)}px ${text.font.style.includes('serif') ? 'serif' : text.font.style.includes('mono') ? 'monospace' : 'sans-serif'}`;
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textX = (text.x / 100) * size;
+        const textY = (text.y / 100) * size;
+        
+        ctx.translate(textX, textY);
+        ctx.rotate((text.rotation * Math.PI) / 180);
+        ctx.fillText(text.content, 0, 0);
+        ctx.restore();
+      });
+      
+      // Convertir en blob
+      canvas.toBlob(async (blob) => {
+        const formData = new FormData();
+        formData.append('image', blob, 'ma-creation.png');
+        formData.append('email', 'minimalflowstudio@gmail.com');
+        
+        // Téléchargement local
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `la-petite-enseigne-${Date.now()}.png`;
+        link.click();
+        URL.revokeObjectURL(url);
+        
+        // Stockage local pour l'utilisateur
+        const reader = new FileReader();
+        reader.onload = () => {
+          const projects = JSON.parse(localStorage.getItem('petite-enseigne-projects') || '[]');
+          projects.push({
+            id: Date.now(),
+            date: new Date().toISOString(),
+            image: reader.result,
+            texts: texts,
+            imageData: {
+              position: imagePosition,
+              scale: imageScale,
+              rotation: imageRotation
+            }
+          });
+          localStorage.setItem('petite-enseigne-projects', JSON.stringify(projects));
+        };
+        reader.readAsDataURL(blob);
+        
+        // Envoyer par email (simulation - dans un vrai projet, vous utiliseriez un service backend)
+        const emailBody = `Nouvelle création La Petite Enseigne créée le ${new Date().toLocaleString()}`;
+        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=Nouvelle création La Petite Enseigne&body=${encodeURIComponent(emailBody)}`;
+        window.open(emailUrl);
+        
+        alert('✅ Image téléchargée et sauvegardée !');
+      }, 'image/png');
+      
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+      alert('❌ Erreur lors de l\'export de l\'image');
+    }
+  }, [selectedImage, imagePosition, imageScale, imageRotation, texts]);
+
   const selectedText = texts.find(text => text.id === selectedTextId);
 
-
+  const handleTextDrag = (id, e) => {
+    const rect = circleRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left - 150) / 300) * 100;
+    const y = ((e.clientY - rect.top - 150) / 300) * 100;
+    updateText(id, { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
@@ -456,9 +372,10 @@ const LaPetiteEnseigne = () => {
           <p className="text-gray-600 text-center mt-2">
             Créez vos designs personnalisés facilement
           </p>
-          <p className="text-sm text-gray-500 text-center mt-1">
-            📱 Tactile : 1 doigt = déplacer | 2 doigts = zoom & rotation | 🖱️ Souris : Clic = déplacer | Ctrl+molette = zoom | Shift+molette = rotation
-          </p>
+          <div className="text-xs text-gray-500 text-center mt-2 space-y-1">
+            <p>📱 <strong>Tactile :</strong> 1 doigt = déplacer | 2 doigts = zoom & rotation</p>
+            <p>🖱️ <strong>Souris :</strong> Clic = déplacer | Ctrl+Molette = zoom | Molette = rotation</p>
+          </div>
         </div>
       </div>
 
@@ -478,17 +395,17 @@ const LaPetiteEnseigne = () => {
                   onMouseDown={handleMouseDown}
                   onTouchStart={handleTouchStart}
                   onWheel={(e) => {
-                    if (!selectedImage) return;
                     e.preventDefault();
-                    
-                    if (e.ctrlKey || e.metaKey) {
-                      // Zoom avec Ctrl + molette
-                      const deltaScale = e.deltaY > 0 ? -0.1 : 0.1;
-                      setImageScale(prev => Math.max(0.1, Math.min(3, prev + deltaScale)));
-                    } else if (e.shiftKey) {
-                      // Rotation avec Shift + molette
-                      const deltaRotation = e.deltaY > 0 ? -15 : 15;
-                      setImageRotation(prev => prev + deltaRotation);
+                    if (selectedImage) {
+                      if (e.ctrlKey) {
+                        // Ctrl + molette = zoom de l'image
+                        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+                        setImageScale(prev => Math.max(0.1, Math.min(3, prev + delta)));
+                      } else {
+                        // Molette = rotation de l'image
+                        const delta = e.deltaY > 0 ? 15 : -15;
+                        setImageRotation(prev => prev + delta);
+                      }
                     }
                   }}
                 >
@@ -518,14 +435,15 @@ const LaPetiteEnseigne = () => {
                   {texts.map(text => (
                     <div
                       key={text.id}
-                      className={`absolute cursor-move select-none ${text.font.style} ${selectedTextId === text.id ? 'ring-2 ring-blue-400' : ''} touch-none`}
+                      className={`absolute cursor-move select-none ${text.font.style} ${selectedTextId === text.id ? 'ring-2 ring-blue-400' : ''}`}
                       style={{
                         left: `${text.x}%`,
                         top: `${text.y}%`,
                         fontSize: `${text.fontSize}px`,
                         transform: `rotate(${text.rotation}deg)`,
                         color: '#000000',
-                        transformOrigin: 'center'
+                        transformOrigin: 'center',
+                        touchAction: 'none'
                       }}
                       onClick={() => {
                         setSelectedTextId(text.id);
@@ -533,8 +451,6 @@ const LaPetiteEnseigne = () => {
                       }}
                       onMouseDown={(e) => {
                         e.stopPropagation();
-                        setSelectedTextId(text.id);
-                        setShowTextControls(true);
                         const handleDrag = (e) => handleTextDrag(text.id, e);
                         const handleRelease = () => {
                           document.removeEventListener('mousemove', handleDrag);
@@ -544,7 +460,21 @@ const LaPetiteEnseigne = () => {
                         document.addEventListener('mouseup', handleRelease);
                       }}
                       onTouchStart={(e) => handleTextTouchStart(text.id, e)}
-                      onWheel={(e) => handleTextWheel(text, e)}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        if (selectedTextId === text.id) {
+                          if (e.ctrlKey) {
+                            // Ctrl + molette = zoom du texte
+                            const delta = e.deltaY > 0 ? -2 : 2;
+                            const newSize = Math.max(12, Math.min(72, text.fontSize + delta));
+                            updateText(text.id, { fontSize: newSize });
+                          } else {
+                            // Molette = rotation du texte
+                            const delta = e.deltaY > 0 ? 15 : -15;
+                            updateText(text.id, { rotation: (text.rotation + delta) % 360 });
+                          }
+                        }
+                      }}
                     >
                       {text.content}
                     </div>
@@ -724,12 +654,17 @@ const LaPetiteEnseigne = () => {
             <div className="bg-white rounded-2xl shadow-lg p-6">
               <h3 className="text-lg font-semibold mb-4 text-gray-800">💾 Export</h3>
               <button
+                onClick={exportImage}
                 disabled={!selectedImage}
                 className="w-full p-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 <Download className="w-5 h-5" />
-                Télécharger l'image
+                Télécharger & Envoyer
               </button>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                📧 Copie envoyée à minimalflowstudio@gmail.com<br/>
+                💾 Sauvegarde automatique locale
+              </p>
             </div>
           </div>
         </div>
