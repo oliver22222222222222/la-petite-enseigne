@@ -249,36 +249,46 @@ const LaPetiteEnseigne = () => {
     if (!selectedImage) return;
     
     try {
-      // Créer un canvas pour l'export
+      // Créer un canvas avec les mêmes proportions que l'affichage
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const size = 600;
-      canvas.width = size;
-      canvas.height = size;
+      const exportSize = 800; // Taille finale plus grande pour meilleure qualité
+      const displaySize = 320; // Taille du cercle à l'écran (w-80 = 320px)
+      const scaleFactor = exportSize / displaySize;
+      
+      canvas.width = exportSize;
+      canvas.height = exportSize;
       
       // Fond blanc
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, size, size);
+      ctx.fillRect(0, 0, exportSize, exportSize);
       
       // Dessiner le cercle de cadrage
       ctx.save();
       ctx.beginPath();
-      ctx.arc(size/2, size/2, size/2 - 10, 0, 2 * Math.PI);
+      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 20, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Dessiner l'image
+      // Dessiner l'image avec les mêmes proportions qu'à l'écran
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
       await new Promise((resolve) => {
         img.onload = () => {
-          const centerX = size/2 + (imagePosition.x * size/320);
-          const centerY = size/2 + (imagePosition.y * size/320);
+          // Calcul de la position et de la taille exactes comme à l'écran
+          const centerX = exportSize/2 + (imagePosition.x * scaleFactor);
+          const centerY = exportSize/2 + (imagePosition.y * scaleFactor);
           
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate((imageRotation * Math.PI) / 180);
           ctx.scale(imageScale, imageScale);
+          
+          // Calculer la taille pour remplir le cercle comme à l'écran
+          const maxDim = Math.max(img.width, img.height);
+          const imgScale = (displaySize * scaleFactor) / maxDim;
+          ctx.scale(imgScale, imgScale);
+          
           ctx.drawImage(img, -img.width/2, -img.height/2);
           ctx.restore();
           resolve();
@@ -288,16 +298,32 @@ const LaPetiteEnseigne = () => {
       
       ctx.restore();
       
-      // Dessiner les textes
+      // Dessiner les textes avec les mêmes proportions
       texts.forEach(text => {
         ctx.save();
-        ctx.font = `${text.fontSize * (size/320)}px ${text.font.style.includes('serif') ? 'serif' : text.font.style.includes('mono') ? 'monospace' : 'sans-serif'}`;
+        
+        // Taille de police proportionnelle
+        const fontSize = text.fontSize * scaleFactor;
+        let fontFamily = 'sans-serif';
+        
+        if (text.font.style.includes('serif')) fontFamily = 'serif';
+        else if (text.font.style.includes('mono')) fontFamily = 'monospace';
+        
+        let fontWeight = 'normal';
+        let fontStyle = 'normal';
+        
+        if (text.font.style.includes('bold') || text.font.style.includes('black')) fontWeight = 'bold';
+        if (text.font.style.includes('italic')) fontStyle = 'italic';
+        if (text.font.style.includes('light')) fontWeight = '300';
+        
+        ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        const textX = (text.x / 100) * size;
-        const textY = (text.y / 100) * size;
+        // Position proportionnelle
+        const textX = (text.x / 100) * exportSize;
+        const textY = (text.y / 100) * exportSize;
         
         ctx.translate(textX, textY);
         ctx.rotate((text.rotation * Math.PI) / 180);
