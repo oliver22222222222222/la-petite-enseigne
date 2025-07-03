@@ -376,9 +376,10 @@ const LaPetiteEnseigne = () => {
           <p className="text-sm text-purple-600 font-medium text-center mt-2">
             ✨ Créez votre design et envoyez-le nous avec vos coordonnées par email ci-dessous ✨
           </p>
-          <div className="text-xs text-gray-500 text-center mt-3 space-y-1">
-            <p>📱 <strong>Tactile :</strong> 1 doigt = déplacer | 2 doigts = zoom & rotation</p>
-            <p>🖱️ <strong>Souris :</strong> Clic = déplacer | Ctrl+Molette = zoom | Molette = rotation</p>
+          <div className="text-center mt-3">
+            <p className="text-lg font-semibold text-green-600">💰 49.- CHF</p>
+            <p className="text-sm text-gray-600">Paiement par Twint ou PayPal</p>
+            <p className="text-xs text-red-600 mt-1">🇨🇭 Envoi uniquement en Suisse</p>
           </div>
         </div>
       </div>
