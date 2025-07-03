@@ -249,45 +249,38 @@ const LaPetiteEnseigne = () => {
     if (!selectedImage) return;
     
     try {
-      // Créer un canvas pour l'export - équilibre entre qualité et taille
+      // Créer un canvas pour l'export
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const displaySize = 320; // Taille du cercle d'affichage (w-80 h-80)
-      const exportSize = 500; // Taille d'export équilibrée
-      const scaleFactor = exportSize / displaySize; // Ratio 1.56
-      
-      canvas.width = exportSize;
-      canvas.height = exportSize;
+      const size = 600;
+      canvas.width = size;
+      canvas.height = size;
       
       // Fond blanc
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, exportSize, exportSize);
+      ctx.fillRect(0, 0, size, size);
       
       // Dessiner le cercle de cadrage
       ctx.save();
       ctx.beginPath();
-      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 8, 0, 2 * Math.PI);
+      ctx.arc(size/2, size/2, size/2 - 10, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Dessiner l'image
+      // Dessiner l'image avec réduction de 15%
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
       await new Promise((resolve) => {
         img.onload = () => {
-          // Position adaptée mais sans sur-scaling
-          const centerX = exportSize/2 + (imagePosition.x * scaleFactor * 0.8);
-          const centerY = exportSize/2 + (imagePosition.y * scaleFactor * 0.8);
+          // Réduction de 15% pour correspondre à l'affichage
+          const zoomCorrection = 0.85; // 100% - 15% = 85%
+          const centerX = size/2 + (imagePosition.x * size/320 * zoomCorrection);
+          const centerY = size/2 + (imagePosition.y * size/320 * zoomCorrection);
           
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate((imageRotation * Math.PI) / 180);
-          
-          // Échelle ajustée pour un rendu naturel
-          const adjustedScale = imageScale * scaleFactor * 0.7;
-          ctx.scale(adjustedScale, adjustedScale);
-          
-          // Dessiner l'image centrée
+          ctx.scale(imageScale * zoomCorrection, imageScale * zoomCorrection);
           ctx.drawImage(img, -img.width/2, -img.height/2);
           ctx.restore();
           resolve();
@@ -297,33 +290,17 @@ const LaPetiteEnseigne = () => {
       
       ctx.restore();
       
-      // Dessiner les textes avec proportions ajustées
+      // Dessiner les textes avec réduction de 15%
       texts.forEach(text => {
         ctx.save();
-        
-        // Adapter la taille de police avec facteur ajusté
-        const exportFontSize = text.fontSize * scaleFactor * 0.9;
-        
-        // Déterminer la font family
-        let fontFamily = 'sans-serif';
-        if (text.font.style.includes('serif')) fontFamily = 'serif';
-        else if (text.font.style.includes('mono')) fontFamily = 'monospace';
-        
-        // Déterminer le poids et le style
-        let fontWeight = 'normal';
-        let fontStyle = 'normal';
-        if (text.font.style.includes('bold') || text.font.style.includes('black')) fontWeight = 'bold';
-        if (text.font.style.includes('italic')) fontStyle = 'italic';
-        if (text.font.style.includes('light')) fontWeight = '300';
-        
-        ctx.font = `${fontStyle} ${fontWeight} ${exportFontSize}px ${fontFamily}`;
+        const zoomCorrection = 0.85; // Même correction pour le texte
+        ctx.font = `${text.fontSize * (size/320) * zoomCorrection}px ${text.font.style.includes('serif') ? 'serif' : text.font.style.includes('mono') ? 'monospace' : 'sans-serif'}`;
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Position adaptée avec facteur ajusté
-        const textX = (text.x / 100) * exportSize;
-        const textY = (text.y / 100) * exportSize;
+        const textX = (text.x / 100) * size;
+        const textY = (text.y / 100) * size;
         
         ctx.translate(textX, textY);
         ctx.rotate((text.rotation * Math.PI) / 180);
