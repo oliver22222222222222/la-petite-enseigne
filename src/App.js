@@ -249,12 +249,12 @@ const LaPetiteEnseigne = () => {
     if (!selectedImage) return;
     
     try {
-      // Créer un canvas pour l'export - même taille que l'affichage pour un rendu identique
+      // Créer un canvas pour l'export - équilibre entre qualité et taille
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       const displaySize = 320; // Taille du cercle d'affichage (w-80 h-80)
-      const exportSize = 400; // Taille d'export légèrement plus petite que l'original
-      const scaleFactor = exportSize / displaySize; // Ratio de mise à l'échelle
+      const exportSize = 500; // Taille d'export équilibrée
+      const scaleFactor = exportSize / displaySize; // Ratio 1.56
       
       canvas.width = exportSize;
       canvas.height = exportSize;
@@ -266,7 +266,7 @@ const LaPetiteEnseigne = () => {
       // Dessiner le cercle de cadrage
       ctx.save();
       ctx.beginPath();
-      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 5, 0, 2 * Math.PI);
+      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 8, 0, 2 * Math.PI);
       ctx.clip();
       
       // Dessiner l'image
@@ -275,30 +275,20 @@ const LaPetiteEnseigne = () => {
       
       await new Promise((resolve) => {
         img.onload = () => {
-          // Calculer les dimensions d'affichage de l'image dans l'interface
-          const maxDisplaySize = 320; // Taille du conteneur
-          const imgAspect = img.width / img.height;
-          let displayWidth, displayHeight;
-          
-          if (imgAspect > 1) {
-            displayWidth = maxDisplaySize;
-            displayHeight = maxDisplaySize / imgAspect;
-          } else {
-            displayHeight = maxDisplaySize;
-            displayWidth = maxDisplaySize * imgAspect;
-          }
-          
-          // Position et échelle adaptées
-          const centerX = exportSize/2 + (imagePosition.x * scaleFactor);
-          const centerY = exportSize/2 + (imagePosition.y * scaleFactor);
+          // Position adaptée mais sans sur-scaling
+          const centerX = exportSize/2 + (imagePosition.x * scaleFactor * 0.8);
+          const centerY = exportSize/2 + (imagePosition.y * scaleFactor * 0.8);
           
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate((imageRotation * Math.PI) / 180);
-          ctx.scale(imageScale * scaleFactor, imageScale * scaleFactor);
           
-          // Dessiner l'image avec les bonnes proportions
-          ctx.drawImage(img, -displayWidth/2, -displayHeight/2, displayWidth, displayHeight);
+          // Échelle ajustée pour un rendu naturel
+          const adjustedScale = imageScale * scaleFactor * 0.7;
+          ctx.scale(adjustedScale, adjustedScale);
+          
+          // Dessiner l'image centrée
+          ctx.drawImage(img, -img.width/2, -img.height/2);
           ctx.restore();
           resolve();
         };
@@ -307,12 +297,12 @@ const LaPetiteEnseigne = () => {
       
       ctx.restore();
       
-      // Dessiner les textes avec les mêmes proportions
+      // Dessiner les textes avec proportions ajustées
       texts.forEach(text => {
         ctx.save();
         
-        // Adapter la taille de police au ratio d'export
-        const exportFontSize = text.fontSize * scaleFactor;
+        // Adapter la taille de police avec facteur ajusté
+        const exportFontSize = text.fontSize * scaleFactor * 0.9;
         
         // Déterminer la font family
         let fontFamily = 'sans-serif';
@@ -331,7 +321,7 @@ const LaPetiteEnseigne = () => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Position adaptée au ratio d'export
+        // Position adaptée avec facteur ajusté
         const textX = (text.x / 100) * exportSize;
         const textY = (text.y / 100) * exportSize;
         
