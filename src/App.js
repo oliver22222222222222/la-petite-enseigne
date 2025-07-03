@@ -1,4 +1,4 @@
-kimport React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Upload, Type, RotateCw, ZoomIn, ZoomOut, Download, Trash2 } from 'lucide-react';
 
 const LaPetiteEnseigne = () => {
@@ -249,12 +249,12 @@ const LaPetiteEnseigne = () => {
     if (!selectedImage) return;
     
     try {
-      // Créer un canvas pour l'export - même taille que l'affichage
+      // Créer un canvas pour l'export - même taille que l'affichage pour un rendu identique
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const displaySize = 320; // Taille du cercle affiché (w-80 = 320px)
-      const exportSize = 800; // Taille haute résolution pour l'export
-      const scale = exportSize / displaySize; // Ratio de mise à l'échelle
+      const displaySize = 320; // Taille du cercle d'affichage (w-80 h-80)
+      const exportSize = 400; // Taille d'export légèrement plus petite que l'original
+      const scaleFactor = exportSize / displaySize; // Ratio de mise à l'échelle
       
       canvas.width = exportSize;
       canvas.height = exportSize;
@@ -266,31 +266,39 @@ const LaPetiteEnseigne = () => {
       // Dessiner le cercle de cadrage
       ctx.save();
       ctx.beginPath();
-      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 10, 0, 2 * Math.PI);
+      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 5, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Dessiner l'image avec les mêmes proportions que l'affichage
+      // Dessiner l'image
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
       await new Promise((resolve) => {
         img.onload = () => {
-          // Calculer la position exactement comme dans l'affichage
-          const centerX = exportSize/2 + (imagePosition.x * scale);
-          const centerY = exportSize/2 + (imagePosition.y * scale);
+          // Calculer les dimensions d'affichage de l'image dans l'interface
+          const maxDisplaySize = 320; // Taille du conteneur
+          const imgAspect = img.width / img.height;
+          let displayWidth, displayHeight;
+          
+          if (imgAspect > 1) {
+            displayWidth = maxDisplaySize;
+            displayHeight = maxDisplaySize / imgAspect;
+          } else {
+            displayHeight = maxDisplaySize;
+            displayWidth = maxDisplaySize * imgAspect;
+          }
+          
+          // Position et échelle adaptées
+          const centerX = exportSize/2 + (imagePosition.x * scaleFactor);
+          const centerY = exportSize/2 + (imagePosition.y * scaleFactor);
           
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate((imageRotation * Math.PI) / 180);
-          ctx.scale(imageScale * scale, imageScale * scale);
+          ctx.scale(imageScale * scaleFactor, imageScale * scaleFactor);
           
-          // Maintenir les proportions de l'image
-          const maxDimension = Math.max(img.width, img.height);
-          const imgScale = (displaySize * 0.8) / maxDimension; // Même logique que l'affichage
-          const finalWidth = img.width * imgScale;
-          const finalHeight = img.height * imgScale;
-          
-          ctx.drawImage(img, -finalWidth/2, -finalHeight/2, finalWidth, finalHeight);
+          // Dessiner l'image avec les bonnes proportions
+          ctx.drawImage(img, -displayWidth/2, -displayHeight/2, displayWidth, displayHeight);
           ctx.restore();
           resolve();
         };
@@ -303,20 +311,27 @@ const LaPetiteEnseigne = () => {
       texts.forEach(text => {
         ctx.save();
         
-        // Police avec la même taille proportionnelle
-        const fontSize = text.fontSize * scale;
-        const fontFamily = text.font.style.includes('serif') ? 'serif' : 
-                          text.font.style.includes('mono') ? 'monospace' : 'sans-serif';
-        const fontWeight = text.font.style.includes('font-black') ? 'bold' : 
-                          text.font.style.includes('font-light') ? '300' : 'normal';
-        const fontStyle = text.font.style.includes('italic') ? 'italic' : 'normal';
+        // Adapter la taille de police au ratio d'export
+        const exportFontSize = text.fontSize * scaleFactor;
         
-        ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+        // Déterminer la font family
+        let fontFamily = 'sans-serif';
+        if (text.font.style.includes('serif')) fontFamily = 'serif';
+        else if (text.font.style.includes('mono')) fontFamily = 'monospace';
+        
+        // Déterminer le poids et le style
+        let fontWeight = 'normal';
+        let fontStyle = 'normal';
+        if (text.font.style.includes('bold') || text.font.style.includes('black')) fontWeight = 'bold';
+        if (text.font.style.includes('italic')) fontStyle = 'italic';
+        if (text.font.style.includes('light')) fontWeight = '300';
+        
+        ctx.font = `${fontStyle} ${fontWeight} ${exportFontSize}px ${fontFamily}`;
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Position exactement proportionnelle à l'affichage
+        // Position adaptée au ratio d'export
         const textX = (text.x / 100) * exportSize;
         const textY = (text.y / 100) * exportSize;
         
