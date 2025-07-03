@@ -244,146 +244,155 @@ const LaPetiteEnseigne = () => {
     }
   }, [texts]);
 
-  // Export précis - capture exacte de ce qui est affiché
+  // Export par capture DOM - reproduction exacte de l'affichage
   const exportImage = useCallback(async () => {
     if (!selectedImage) return;
     
     try {
-      // Dimensions exactes du cercle d'affichage (320x320px)
-      const displaySize = 320;
-      const exportSize = 800; // Haute résolution pour impression
-      const scale = exportSize / displaySize;
+      const circleElement = circleRef.current;
+      if (!circleElement) return;
       
+      // Création d'un canvas temporaire pour la capture
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
+      const rect = circleElement.getBoundingClientRect();
+      
+      // Taille d'export (haute résolution)
+      const exportSize = 800;
       canvas.width = exportSize;
       canvas.height = exportSize;
+      
+      // Ratio de mise à l'échelle
+      const scale = exportSize / rect.width;
       
       // Fond blanc
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, exportSize, exportSize);
       
-      // Créer un clipping circle exact
+      // Créer un clipping circle parfait
       ctx.save();
       ctx.beginPath();
-      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 5, 0, 2 * Math.PI);
+      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 2, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Charger et dessiner l'image avec les transformations exactes
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
+      // Capturer l'image avec ses transformations actuelles
+      if (selectedImage) {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        
+        await new Promise((resolve) => {
+          img.onload = () => {
+            ctx.save();
+            
+            // Reproduction exacte des transformations CSS
+            const centerX = exportSize/2 + (imagePosition.x * scale);
+            const centerY = exportSize/2 + (imagePosition.y * scale);
+            
+            ctx.translate(centerX, centerY);
+            ctx.rotate((imageRotation * Math.PI) / 180);
+            ctx.scale(imageScale * scale, imageScale * scale);
+            
+            // Dessiner l'image avec la même logique qu'à l'écran
+            const imgWidth = img.naturalWidth || img.width;
+            const imgHeight = img.naturalHeight || img.height;
+            ctx.drawImage(img, -imgWidth/2, -imgHeight/2);
+            
+            ctx.restore();
+            resolve();
+          };
+          img.src = selectedImage;
+        });
+      }
       
-      await new Promise((resolve) => {
-        img.onload = () => {
-          ctx.save();
-          
-          // Position exacte du centre + décalage utilisateur (mise à l'échelle)
-          const centerX = exportSize/2 + (imagePosition.x * scale);
-          const centerY = exportSize/2 + (imagePosition.y * scale);
-          
-          // Appliquer les transformations dans le bon ordre
-          ctx.translate(centerX, centerY);
-          ctx.rotate((imageRotation * Math.PI) / 180);
-          ctx.scale(imageScale, imageScale);
-          
-          // Dessiner l'image centrée sur le point de transformation
-          ctx.drawImage(img, -img.width/2, -img.height/2);
-          ctx.restore();
-          resolve();
-        };
-        img.src = selectedImage;
-      });
+      ctx.restore(); // Fin du clipping pour l'image
       
-      ctx.restore(); // Fin du clipping de l'image
-      
-      // Dessiner les textes avec positionnement exact
+      // Dessiner les textes exactement comme à l'écran
       texts.forEach(text => {
         ctx.save();
         
-        // Calculer la position exacte du texte (conversion des % en pixels)
+        // Position exacte (conversion des % vers pixels d'export)
         const textX = (text.x / 100) * exportSize;
         const textY = (text.y / 100) * exportSize;
         
-        // Configuration de la police avec mise à l'échelle
-        const fontSize = text.fontSize * scale;
-        let fontFamily = 'Arial, sans-serif';
+        // Style de police exact
+        let fontFamily = 'Arial';
         let fontWeight = 'normal';
         let fontStyle = 'normal';
         
-        // Conversion précise des styles de police
-        if (text.font.style.includes('serif') && text.font.style.includes('italic')) {
-          fontFamily = 'Times, serif';
+        if (text.font.name === 'Script') {
+          fontFamily = 'serif';
           fontStyle = 'italic';
-        } else if (text.font.style.includes('serif')) {
-          fontFamily = 'Times, serif';
-        } else if (text.font.style.includes('mono')) {
-          fontFamily = 'Courier, monospace';
-        } else if (text.font.style.includes('font-black')) {
-          fontWeight = '900';
-        } else if (text.font.style.includes('font-light')) {
+        } else if (text.font.name === 'Impact') {
+          fontFamily = 'Arial';
+          fontWeight = 'black';
+        } else if (text.font.name === 'Vintage') {
+          fontFamily = 'monospace';
+        } else if (text.font.name === 'Handwrite') {
+          fontFamily = 'serif';
+        } else if (text.font.name === 'Modern') {
+          fontFamily = 'Arial';
           fontWeight = '300';
         }
         
+        const fontSize = text.fontSize * scale;
         ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Appliquer la rotation du texte
+        // Rotation du texte
         ctx.translate(textX, textY);
         ctx.rotate((text.rotation * Math.PI) / 180);
-        
-        // Dessiner le texte
         ctx.fillText(text.content, 0, 0);
+        
         ctx.restore();
       });
       
-      // Export avec qualité maximale
+      // Export haute qualité
       canvas.toBlob(async (blob) => {
         // Téléchargement automatique
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `la-petite-enseigne-${Date.now()}.png`;
+        link.download = `petite-enseigne-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
         link.click();
         URL.revokeObjectURL(url);
         
-        // Sauvegarde locale du projet
+        // Sauvegarde locale
         const reader = new FileReader();
         reader.onload = () => {
           const projects = JSON.parse(localStorage.getItem('petite-enseigne-projects') || '[]');
-          projects.push({
+          projects.unshift({ // Ajouter au début
             id: Date.now(),
             date: new Date().toLocaleString('fr-FR'),
-            image: reader.result,
-            originalData: {
-              texts: texts,
-              imagePosition: imagePosition,
+            exportedImage: reader.result,
+            settings: {
+              texts: [...texts],
+              imagePosition: {...imagePosition},
               imageScale: imageScale,
               imageRotation: imageRotation,
-              originalImage: selectedImage
+              sourceImage: selectedImage
             }
           });
-          // Garder seulement les 10 derniers projets
-          if (projects.length > 10) {
-            projects.splice(0, projects.length - 10);
-          }
+          
+          // Garder seulement les 5 derniers
+          if (projects.length > 5) projects.splice(5);
           localStorage.setItem('petite-enseigne-projects', JSON.stringify(projects));
         };
         reader.readAsDataURL(blob);
         
-        // Ouverture email avec le client par défaut
-        const emailSubject = `Nouvelle création La Petite Enseigne - ${new Date().toLocaleString('fr-FR')}`;
-        const emailBody = `Bonjour,\n\nNouvelle création réalisée avec La Petite Enseigne.\n\nCordialement`;
-        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-        window.open(emailUrl);
+        // Email automatique
+        const subject = `Création La Petite Enseigne - ${new Date().toLocaleDateString('fr-FR')}`;
+        const body = `Nouvelle création réalisée avec La Petite Enseigne le ${new Date().toLocaleString('fr-FR')}.`;
+        window.open(`mailto:minimalflowstudio@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
         
-        alert('✅ Image exportée en haute qualité (800x800px) !\n📧 Email préparé\n💾 Projet sauvegardé');
-      }, 'image/png', 1.0); // Qualité maximale
+        alert('✅ Export réussi !\n📐 Résolution: 800x800px\n💾 Sauvegardé localement\n📧 Email préparé');
+        
+      }, 'image/png', 1.0);
       
     } catch (error) {
-      console.error('Erreur lors de l\'export:', error);
-      alert('❌ Erreur lors de l\'export. Vérifiez que l\'image est bien chargée.');
+      console.error('Erreur export:', error);
+      alert('❌ Erreur lors de l\'export. Veuillez réessayer.');
     }
   }, [selectedImage, imagePosition, imageScale, imageRotation, texts]);
 
