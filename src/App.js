@@ -244,32 +244,103 @@ const LaPetiteEnseigne = () => {
     }
   }, [texts]);
 
-  // Export par capture d'écran
+  // Export précis - capture exacte de ce qui est affiché
   const exportImage = useCallback(async () => {
     if (!selectedImage) return;
     
     try {
-      const circleElement = circleRef.current;
-      if (!circleElement) return;
+      // Dimensions exactes du cercle d'affichage (320x320px)
+      const displaySize = 320;
+      const exportSize = 800; // Haute résolution pour impression
+      const scale = exportSize / displaySize;
       
-      // Utiliser html2canvas pour capturer le cercle
-      const html2canvas = (await import('https://cdn.skypack.dev/html2canvas')).default;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = exportSize;
+      canvas.height = exportSize;
       
-      const canvas = await html2canvas(circleElement, {
-        width: 320,
-        height: 320,
-        scale: 2, // Haute qualité
-        backgroundColor: '#ffffff',
-        allowTaint: true,
-        useCORS: true,
-        logging: false
+      // Fond blanc
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, exportSize, exportSize);
+      
+      // Créer un clipping circle exact
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 5, 0, 2 * Math.PI);
+      ctx.clip();
+      
+      // Charger et dessiner l'image avec les transformations exactes
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      await new Promise((resolve) => {
+        img.onload = () => {
+          ctx.save();
+          
+          // Position exacte du centre + décalage utilisateur (mise à l'échelle)
+          const centerX = exportSize/2 + (imagePosition.x * scale);
+          const centerY = exportSize/2 + (imagePosition.y * scale);
+          
+          // Appliquer les transformations dans le bon ordre
+          ctx.translate(centerX, centerY);
+          ctx.rotate((imageRotation * Math.PI) / 180);
+          ctx.scale(imageScale, imageScale);
+          
+          // Dessiner l'image centrée sur le point de transformation
+          ctx.drawImage(img, -img.width/2, -img.height/2);
+          ctx.restore();
+          resolve();
+        };
+        img.src = selectedImage;
       });
       
-      // Convertir en blob
-      canvas.toBlob(async (blob) => {
-        if (!blob) return;
+      ctx.restore(); // Fin du clipping de l'image
+      
+      // Dessiner les textes avec positionnement exact
+      texts.forEach(text => {
+        ctx.save();
         
-        // Téléchargement local
+        // Calculer la position exacte du texte (conversion des % en pixels)
+        const textX = (text.x / 100) * exportSize;
+        const textY = (text.y / 100) * exportSize;
+        
+        // Configuration de la police avec mise à l'échelle
+        const fontSize = text.fontSize * scale;
+        let fontFamily = 'Arial, sans-serif';
+        let fontWeight = 'normal';
+        let fontStyle = 'normal';
+        
+        // Conversion précise des styles de police
+        if (text.font.style.includes('serif') && text.font.style.includes('italic')) {
+          fontFamily = 'Times, serif';
+          fontStyle = 'italic';
+        } else if (text.font.style.includes('serif')) {
+          fontFamily = 'Times, serif';
+        } else if (text.font.style.includes('mono')) {
+          fontFamily = 'Courier, monospace';
+        } else if (text.font.style.includes('font-black')) {
+          fontWeight = '900';
+        } else if (text.font.style.includes('font-light')) {
+          fontWeight = '300';
+        }
+        
+        ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.fillStyle = '#000000';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        // Appliquer la rotation du texte
+        ctx.translate(textX, textY);
+        ctx.rotate((text.rotation * Math.PI) / 180);
+        
+        // Dessiner le texte
+        ctx.fillText(text.content, 0, 0);
+        ctx.restore();
+      });
+      
+      // Export avec qualité maximale
+      canvas.toBlob(async (blob) => {
+        // Téléchargement automatique
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -277,62 +348,42 @@ const LaPetiteEnseigne = () => {
         link.click();
         URL.revokeObjectURL(url);
         
-        // Stockage local pour l'utilisateur
+        // Sauvegarde locale du projet
         const reader = new FileReader();
         reader.onload = () => {
           const projects = JSON.parse(localStorage.getItem('petite-enseigne-projects') || '[]');
           projects.push({
             id: Date.now(),
-            date: new Date().toISOString(),
+            date: new Date().toLocaleString('fr-FR'),
             image: reader.result,
-            texts: texts,
-            imageData: {
-              position: imagePosition,
-              scale: imageScale,
-              rotation: imageRotation
+            originalData: {
+              texts: texts,
+              imagePosition: imagePosition,
+              imageScale: imageScale,
+              imageRotation: imageRotation,
+              originalImage: selectedImage
             }
           });
+          // Garder seulement les 10 derniers projets
+          if (projects.length > 10) {
+            projects.splice(0, projects.length - 10);
+          }
           localStorage.setItem('petite-enseigne-projects', JSON.stringify(projects));
         };
         reader.readAsDataURL(blob);
         
-        // Envoyer par email
-        const emailBody = `Nouvelle création La Petite Enseigne créée le ${new Date().toLocaleString()}`;
-        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=Nouvelle création La Petite Enseigne&body=${encodeURIComponent(emailBody)}`;
+        // Ouverture email avec le client par défaut
+        const emailSubject = `Nouvelle création La Petite Enseigne - ${new Date().toLocaleString('fr-FR')}`;
+        const emailBody = `Bonjour,\n\nNouvelle création réalisée avec La Petite Enseigne.\n\nCordialement`;
+        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
         window.open(emailUrl);
         
-        alert('✅ Capture d\'écran téléchargée et sauvegardée !');
-      }, 'image/png');
+        alert('✅ Image exportée en haute qualité (800x800px) !\n📧 Email préparé\n💾 Projet sauvegardé');
+      }, 'image/png', 1.0); // Qualité maximale
       
     } catch (error) {
-      console.error('Erreur lors de la capture:', error);
-      
-      // Fallback : capture manuelle simple
-      try {
-        const circleElement = circleRef.current;
-        const rect = circleElement.getBoundingClientRect();
-        
-        // Créer un canvas simple
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        canvas.width = 600;
-        canvas.height = 600;
-        
-        // Instructions pour l'utilisateur
-        alert('📱 Veuillez faire une capture d\'écran du cercle manuellement.\n\n' +
-              '🖥️ PC: Outil Capture (Windows + Shift + S)\n' +
-              '📱 Mobile: Screenshot habituel\n' +
-              '✂️ Puis découpez la zone circulaire');
-        
-        // Ouvrir l'email quand même
-        const emailBody = `Nouvelle création La Petite Enseigne créée le ${new Date().toLocaleString()}`;
-        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=Nouvelle création La Petite Enseigne&body=${encodeURIComponent(emailBody)}`;
-        window.open(emailUrl);
-        
-      } catch (fallbackError) {
-        console.error('Erreur fallback:', fallbackError);
-        alert('❌ Erreur lors de l\'export. Faites une capture d\'écran manuelle du cercle.');
-      }
+      console.error('Erreur lors de l\'export:', error);
+      alert('❌ Erreur lors de l\'export. Vérifiez que l\'image est bien chargée.');
     }
   }, [selectedImage, imagePosition, imageScale, imageRotation, texts]);
 
