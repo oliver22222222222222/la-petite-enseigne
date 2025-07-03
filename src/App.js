@@ -244,155 +244,111 @@ const LaPetiteEnseigne = () => {
     }
   }, [texts]);
 
-  // Export par capture DOM - reproduction exacte de l'affichage
+  // Export et envoi par email
   const exportImage = useCallback(async () => {
     if (!selectedImage) return;
     
     try {
-      const circleElement = circleRef.current;
-      if (!circleElement) return;
-      
-      // Création d'un canvas temporaire pour la capture
+      // Créer un canvas pour l'export
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const rect = circleElement.getBoundingClientRect();
-      
-      // Taille d'export (haute résolution)
-      const exportSize = 800;
-      canvas.width = exportSize;
-      canvas.height = exportSize;
-      
-      // Ratio de mise à l'échelle
-      const scale = exportSize / rect.width;
+      const size = 600;
+      canvas.width = size;
+      canvas.height = size;
       
       // Fond blanc
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, exportSize, exportSize);
+      ctx.fillRect(0, 0, size, size);
       
-      // Créer un clipping circle parfait
+      // Dessiner le cercle de cadrage
       ctx.save();
       ctx.beginPath();
-      ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 2, 0, 2 * Math.PI);
+      ctx.arc(size/2, size/2, size/2 - 10, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Capturer l'image avec ses transformations actuelles
-      if (selectedImage) {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        
-        await new Promise((resolve) => {
-          img.onload = () => {
-            ctx.save();
-            
-            // Reproduction exacte des transformations CSS
-            const centerX = exportSize/2 + (imagePosition.x * scale);
-            const centerY = exportSize/2 + (imagePosition.y * scale);
-            
-            ctx.translate(centerX, centerY);
-            ctx.rotate((imageRotation * Math.PI) / 180);
-            ctx.scale(imageScale * scale, imageScale * scale);
-            
-            // Dessiner l'image avec la même logique qu'à l'écran
-            const imgWidth = img.naturalWidth || img.width;
-            const imgHeight = img.naturalHeight || img.height;
-            ctx.drawImage(img, -imgWidth/2, -imgHeight/2);
-            
-            ctx.restore();
-            resolve();
-          };
-          img.src = selectedImage;
-        });
-      }
+      // Dessiner l'image
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
       
-      ctx.restore(); // Fin du clipping pour l'image
+      await new Promise((resolve) => {
+        img.onload = () => {
+          const centerX = size/2 + (imagePosition.x * size/320);
+          const centerY = size/2 + (imagePosition.y * size/320);
+          
+          ctx.save();
+          ctx.translate(centerX, centerY);
+          ctx.rotate((imageRotation * Math.PI) / 180);
+          ctx.scale(imageScale, imageScale);
+          ctx.drawImage(img, -img.width/2, -img.height/2);
+          ctx.restore();
+          resolve();
+        };
+        img.src = selectedImage;
+      });
       
-      // Dessiner les textes exactement comme à l'écran
+      ctx.restore();
+      
+      // Dessiner les textes
       texts.forEach(text => {
         ctx.save();
-        
-        // Position exacte (conversion des % vers pixels d'export)
-        const textX = (text.x / 100) * exportSize;
-        const textY = (text.y / 100) * exportSize;
-        
-        // Style de police exact
-        let fontFamily = 'Arial';
-        let fontWeight = 'normal';
-        let fontStyle = 'normal';
-        
-        if (text.font.name === 'Script') {
-          fontFamily = 'serif';
-          fontStyle = 'italic';
-        } else if (text.font.name === 'Impact') {
-          fontFamily = 'Arial';
-          fontWeight = 'black';
-        } else if (text.font.name === 'Vintage') {
-          fontFamily = 'monospace';
-        } else if (text.font.name === 'Handwrite') {
-          fontFamily = 'serif';
-        } else if (text.font.name === 'Modern') {
-          fontFamily = 'Arial';
-          fontWeight = '300';
-        }
-        
-        const fontSize = text.fontSize * scale;
-        ctx.font = `${fontStyle} ${fontWeight} ${fontSize}px ${fontFamily}`;
+        ctx.font = `${text.fontSize * (size/320)}px ${text.font.style.includes('serif') ? 'serif' : text.font.style.includes('mono') ? 'monospace' : 'sans-serif'}`;
         ctx.fillStyle = '#000000';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Rotation du texte
+        const textX = (text.x / 100) * size;
+        const textY = (text.y / 100) * size;
+        
         ctx.translate(textX, textY);
         ctx.rotate((text.rotation * Math.PI) / 180);
         ctx.fillText(text.content, 0, 0);
-        
         ctx.restore();
       });
       
-      // Export haute qualité
+      // Convertir en blob
       canvas.toBlob(async (blob) => {
-        // Téléchargement automatique
+        const formData = new FormData();
+        formData.append('image', blob, 'ma-creation.png');
+        formData.append('email', 'minimalflowstudio@gmail.com');
+        
+        // Téléchargement local
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `petite-enseigne-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.png`;
+        link.download = `la-petite-enseigne-${Date.now()}.png`;
         link.click();
         URL.revokeObjectURL(url);
         
-        // Sauvegarde locale
+        // Stockage local pour l'utilisateur
         const reader = new FileReader();
         reader.onload = () => {
           const projects = JSON.parse(localStorage.getItem('petite-enseigne-projects') || '[]');
-          projects.unshift({ // Ajouter au début
+          projects.push({
             id: Date.now(),
-            date: new Date().toLocaleString('fr-FR'),
-            exportedImage: reader.result,
-            settings: {
-              texts: [...texts],
-              imagePosition: {...imagePosition},
-              imageScale: imageScale,
-              imageRotation: imageRotation,
-              sourceImage: selectedImage
+            date: new Date().toISOString(),
+            image: reader.result,
+            texts: texts,
+            imageData: {
+              position: imagePosition,
+              scale: imageScale,
+              rotation: imageRotation
             }
           });
-          
-          // Garder seulement les 5 derniers
-          if (projects.length > 5) projects.splice(5);
           localStorage.setItem('petite-enseigne-projects', JSON.stringify(projects));
         };
         reader.readAsDataURL(blob);
         
-        // Email automatique
-        const subject = `Création La Petite Enseigne - ${new Date().toLocaleDateString('fr-FR')}`;
-        const body = `Nouvelle création réalisée avec La Petite Enseigne le ${new Date().toLocaleString('fr-FR')}.`;
-        window.open(`mailto:minimalflowstudio@gmail.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+        // Envoyer par email (simulation - dans un vrai projet, vous utiliseriez un service backend)
+        const emailBody = `Nouvelle création La Petite Enseigne créée le ${new Date().toLocaleString()}`;
+        const emailUrl = `mailto:minimalflowstudio@gmail.com?subject=Nouvelle création La Petite Enseigne&body=${encodeURIComponent(emailBody)}`;
+        window.open(emailUrl);
         
-        alert('✅ Export réussi !\n📐 Résolution: 800x800px\n💾 Sauvegardé localement\n📧 Email préparé');
-        
-      }, 'image/png', 1.0);
+        alert('✅ Image téléchargée et sauvegardée !');
+      }, 'image/png');
       
     } catch (error) {
-      console.error('Erreur export:', error);
-      alert('❌ Erreur lors de l\'export. Veuillez réessayer.');
+      console.error('Erreur lors de l\'export:', error);
+      alert('❌ Erreur lors de l\'export de l\'image');
     }
   }, [selectedImage, imagePosition, imageScale, imageRotation, texts]);
 
@@ -413,10 +369,14 @@ const LaPetiteEnseigne = () => {
           <h1 className="text-3xl font-bold text-gray-800 text-center">
             🎨 La Petite Enseigne
           </h1>
-          <p className="text-gray-600 text-center mt-2">
-            Créez vos designs personnalisés facilement
+          <p className="text-gray-600 text-center mt-2 max-w-2xl mx-auto">
+            <strong>Lampes enseignes lithophanes personnalisées</strong><br/>
+            Télécommande incluse • Multiples couleurs • Design sur mesure
           </p>
-          <div className="text-xs text-gray-500 text-center mt-2 space-y-1">
+          <p className="text-sm text-purple-600 font-medium text-center mt-2">
+            ✨ Créez votre design et envoyez-le nous avec vos coordonnées par email ci-dessous ✨
+          </p>
+          <div className="text-xs text-gray-500 text-center mt-3 space-y-1">
             <p>📱 <strong>Tactile :</strong> 1 doigt = déplacer | 2 doigts = zoom & rotation</p>
             <p>🖱️ <strong>Souris :</strong> Clic = déplacer | Ctrl+Molette = zoom | Molette = rotation</p>
           </div>
