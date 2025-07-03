@@ -252,8 +252,8 @@ const LaPetiteEnseigne = () => {
       // Créer un canvas avec les mêmes proportions que l'affichage
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      const exportSize = 800; // Taille finale plus grande pour meilleure qualité
-      const displaySize = 320; // Taille du cercle à l'écran (w-80 = 320px)
+      const exportSize = 800; // Taille finale 
+      const displaySize = 320; // Taille réelle du cercle à l'écran (w-80 = 320px)
       const scaleFactor = exportSize / displaySize;
       
       canvas.width = exportSize;
@@ -269,26 +269,24 @@ const LaPetiteEnseigne = () => {
       ctx.arc(exportSize/2, exportSize/2, exportSize/2 - 20, 0, 2 * Math.PI);
       ctx.clip();
       
-      // Dessiner l'image avec les mêmes proportions qu'à l'écran
+      // Dessiner l'image avec exactement les mêmes calculs qu'à l'écran
       const img = new Image();
       img.crossOrigin = 'anonymous';
       
       await new Promise((resolve) => {
         img.onload = () => {
-          // Calcul de la position et de la taille exactes comme à l'écran
+          // Position exacte comme à l'écran, mais mise à l'échelle
           const centerX = exportSize/2 + (imagePosition.x * scaleFactor);
           const centerY = exportSize/2 + (imagePosition.y * scaleFactor);
           
           ctx.save();
           ctx.translate(centerX, centerY);
           ctx.rotate((imageRotation * Math.PI) / 180);
-          ctx.scale(imageScale, imageScale);
           
-          // Calculer la taille pour remplir le cercle comme à l'écran
-          const maxDim = Math.max(img.width, img.height);
-          const imgScale = (displaySize * scaleFactor) / maxDim;
-          ctx.scale(imgScale, imgScale);
+          // Appliquer exactement le même scale que celui affiché
+          ctx.scale(imageScale * scaleFactor, imageScale * scaleFactor);
           
+          // Dessiner l'image centrée comme à l'écran
           ctx.drawImage(img, -img.width/2, -img.height/2);
           ctx.restore();
           resolve();
@@ -298,11 +296,11 @@ const LaPetiteEnseigne = () => {
       
       ctx.restore();
       
-      // Dessiner les textes avec les mêmes proportions
+      // Dessiner les textes avec les mêmes proportions exactes
       texts.forEach(text => {
         ctx.save();
         
-        // Taille de police proportionnelle
+        // Taille de police proportionnelle exacte
         const fontSize = text.fontSize * scaleFactor;
         let fontFamily = 'sans-serif';
         
@@ -321,7 +319,7 @@ const LaPetiteEnseigne = () => {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         
-        // Position proportionnelle
+        // Position proportionnelle exacte
         const textX = (text.x / 100) * exportSize;
         const textY = (text.y / 100) * exportSize;
         
